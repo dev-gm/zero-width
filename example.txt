@@ -1,0 +1,16 @@
+This is an example file that is successfully interpreted by Zero-Width.
+
+move left᠎
+increment‌
+increment‌
+input‍
+move right​
+input‍
+increment‌
+loop﻿
+output‍‍
+move left᠎
+move right​
+increment‌
+output‍‍
+end loop﻿
