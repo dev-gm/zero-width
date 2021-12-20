@@ -3,17 +3,35 @@ use std::path::PathBuf;
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 
+/// Possible zero-width characters
+enum InstructionChar {
+    MOVE_RIGHT = 0x180E,
+    MOVE_LEFT = 0x200B,
+    INCREMENT = 0x200C,
+    INPUT = 0x200D,
+    LOOP = 0xFEFF,
+}
+
+/// Interprets a string slice. Useful for loops.
 fn run_str(raw_contents: &str, plane: &mut VecDeque<u8>, location: &mut usize, in_loop: bool) {
     let mut wait_for_loop_end = false;
     let mut input_last = false;
     'run: for (i, ch) in raw_contents.chars().enumerate() {
+        // If loop condition is not satisfied, wait_for_loop_end is set to true. As long as
+        // the current character is not the loop instruction, indicating ending the loop, it
+        // skips that character. If wait_for_loop_end is set to true and the character is the
+        // loop instruction, wait_for_loop_end is set to false and the character is skipped. 
         if wait_for_loop_end && !(ch as u32 == 0xFEFF) {
             continue 'run;
         } else if wait_for_loop_end {
             wait_for_loop_end = false;
             continue 'run;
         }
-        if ch as u32 == 0x200D {
+        // In order to correctly interpret inputs vs outputs, whenever the input instruction
+        // is seen, it sets input_last to true. It is only on the next turn that the
+        // interpreter sees whether the next character is the input instruction or not, and
+        // the interpeter can decide whether to run INPUT or OUTPUT.
+        if ch as u32 == InstructionChar::INPUT {
             if input_last {
                 println!("OUT: {}", plane[*location]);
                 input_last = false;
@@ -29,14 +47,14 @@ fn run_str(raw_contents: &str, plane: &mut VecDeque<u8>, location: &mut usize, i
             input_last = false;
         }
         match ch as u32 {
-            0x180E => {
+            InstructionChar::MOVE_LEFT => {
                 if *location == 0 {
                     plane.push_front(0);
                 } else {
                     *location -= 1;
                 }
             },
-            0x200B => {
+            InstructionChar::MOVE_RIGHT => {
                 if *location == plane.len() - 1 {
                     plane.push_back(0);
                     *location += 1;
@@ -44,14 +62,14 @@ fn run_str(raw_contents: &str, plane: &mut VecDeque<u8>, location: &mut usize, i
                     *location += 1;
                 }
             },
-            0x200C => {
+            InstructionChar::INCREMENT => {
                 if plane[*location] == u8::MAX {
                     plane[*location] = 0;
                 } else {
                     plane[*location] += 1;
                 }
             },
-            0xFEFF => {
+            InstructionChar::LOOP => {
                 if in_loop {
                     break 'run;
                 }
@@ -69,12 +87,6 @@ fn run_str(raw_contents: &str, plane: &mut VecDeque<u8>, location: &mut usize, i
     }
 }
 
-pub fn run(raw_contents: String) {
-    let mut plane = VecDeque::from([0u8]);
-    let mut location: usize = 0;
-    run_str(raw_contents.as_str(), &mut plane, &mut location, false);
-}
-
 pub fn main() -> io::Result<()> {
     let path = PathBuf::from(
         std::env::args_os().nth(1).expect("No file argument passed in")
@@ -82,6 +94,8 @@ pub fn main() -> io::Result<()> {
     let mut file = File::open(&path)?;
     let mut raw_contents = String::new();
     file.read_to_string(&mut raw_contents)?;
-    run(raw_contents);
+    let mut plane = VecDeque::from([0u8]);
+    let mut location: usize = 0;
+    run_str(raw_contents.as_str(), &mut plane, &mut location, false);
     Ok(())
 }
